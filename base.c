@@ -1,22 +1,16 @@
 #include <stdlib.h>
 #include <ncurses.h>
 
+#include<netinet/in.h>
+#include<arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <time.h>
 
 #include "pong.h"
 
 WINDOW * message_win;
 
-typedef struct ball_position_t{
-    int x, y;
-    int up_hor_down; //  -1 up, 0 horizontal, 1 down
-    int left_ver_right; //  -1 left, 0 vertical,1 right
-    char c;
-} ball_position_t;
-
-typedef struct paddle_position_t{
-    int x, y;
-    int length;
-} paddle_position_t;
 
 /*sets the position of the paddle to the bottom middle of the window*/
 void new_paddle (paddle_position_t * paddle, int legth){
@@ -124,43 +118,123 @@ paddle_position_t paddle;
 ball_position_t ball;
 
 int main(){
-	initscr();		    	/* Start curses mode 		*/
-	cbreak();				/* Line buffering disabled	*/
-    keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
-	noecho();			    /* Don't echo() while we do getch */
+    int sock_fd;
+    sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock_fd == -1){
+	    perror("socket: ");
+	    exit(-1);
+    }  
+    printf("socket created \n Ready to send\n");
 
-    /* creates a window and draws a border */
-    WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
-    box(my_win, 0 , 0);	
-	wrefresh(my_win);
-    keypad(my_win, true);
-    /* creates a window and draws a border */
-    message_win = newwin(5, WINDOW_SIZE+10, WINDOW_SIZE, 0);
-    box(message_win, 0 , 0);	
-	wrefresh(message_win);
+    // added to get the server address
+    char linha[100];  
+    printf("What is the network address of the recipient? ");
+	fgets(linha, 100, stdin);
+	linha[strlen(linha)-1] = '\0';
+
+	struct sockaddr_in server_addr;
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(SOCK_PORT);
+	if( inet_pton(AF_INET, linha, &server_addr.sin_addr) < 1){
+		printf("no valid address: \n");
+		exit(-1);
+	}
+
+    time_t start, current;
+    int i = 0;
+    message m;
+    message fromServer;
+    char ch;
+    while(1)
+    {
+        ch = ' ';
+        m.type = CONNECT;
+        printf("Press the C key to connect to the server\n");
+        while(ch != 'c'){scanf("%c", &ch);}
+        sendto(sock_fd, &m, sizeof(message), 0, 
+        (const struct sockaddr *)&server_addr, sizeof(server_addr));
+        // while(1){
+            initscr();		    	/* Start curses mode 		*/
+            cbreak();				/* Line buffering disabled	*/
+            keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
+            noecho();			    /* Don't echo() while we do getch */
+
+            /* creates a window and draws a border */
+            WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
+            box(my_win, 0 , 0);	
+            wrefresh(my_win);
+            keypad(my_win, true);
+            /* creates a window and draws a border */
+            message_win = newwin(5, WINDOW_SIZE+10, WINDOW_SIZE, 0);
+            box(message_win, 0 , 0);	
+            wrefresh(message_win);
 
 
-    new_paddle(&paddle, PADLE_SIZE);
-    draw_paddle(my_win, &paddle, true);
-
-    place_ball_random(&ball);
-    draw_ball(my_win, &ball, true);
-
-    int key = -1;
-    while(key != 27){
-        key = wgetch(my_win);		
-        if (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN){
-            draw_paddle(my_win, &paddle, false);
-            moove_paddle (&paddle, key);
+            new_paddle(&paddle, PADDLE_SIZE);
             draw_paddle(my_win, &paddle, true);
 
-            draw_ball(my_win, &ball, false);
-            moove_ball(&ball);
+            place_ball_random(&ball);
             draw_ball(my_win, &ball, true);
-        }
-        mvwprintw(message_win, 1,1,"%c key pressed", key);
-        wrefresh(message_win);	
-    }
 
+        while(1)
+        {
+            recv(sock_fd, &fromServer, sizeof(message), 0);
+        
+            if(fromServer.type == MOVE)
+            {
+                paddle = fromServer.paddle;
+                ball = fromServer.ball;
+
+                draw_paddle(my_win, &paddle, false);
+                //moove_paddle (&paddle, key);
+                draw_paddle(my_win, &paddle, true);
+
+                draw_ball(my_win, &ball, false);
+                //moove_ball(&ball);
+                draw_ball(my_win, &ball, true);
+
+                recv(sock_fd, &fromServer, sizeof(message), 0);
+            }
+
+            if(fromServer.type == SEND)
+            {
+                start = time(NULL);
+                int key = -1;
+                while(key != 'q' && key != 'r' && difftime(current, start) < 10)
+                {
+                    current = time(NULL);
+                    key = wgetch(my_win);		
+                    if (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN)
+                    {
+                        draw_paddle(my_win, &paddle, false);
+                        moove_paddle (&paddle, key);
+                        draw_paddle(my_win, &paddle, true);
+
+                        draw_ball(my_win, &ball, false);
+                        moove_ball(&ball);
+                        draw_ball(my_win, &ball, true);
+                    }
+                    m.type = MOVE;
+                    m.paddle = paddle;
+                    m.ball = ball;
+                    sendto(sock_fd, &m, sizeof(message), 0, 
+                (const struct sockaddr *)&server_addr, sizeof(server_addr));
+                    mvwprintw(message_win, 1,1,"%c key pressed\n", key);
+                    mvwprintw(message_win, 3,1,"attempt %d", i);
+                    wrefresh(message_win);	
+                }
+                i++;
+                if(key == 'r' || difftime(current, start) >= 10)
+                    m.type = RELEASE;
+                if(key == 'q')
+                    m.type = DISCONNECT;
+                sendto(sock_fd, &m, sizeof(message), 0, 
+                (const struct sockaddr *)&server_addr, sizeof(server_addr));
+                if(key == 'q')
+                    break;
+            }
+        }
+        endwin();
+    }
     exit(0);
 }
