@@ -72,11 +72,34 @@ void place_ball_random(ball_position_t * ball){
     ball->left_ver_right = rand() % 3 -1 ; // 0 vertical, -1 left, 1 right
 }
 
+
+// my func
+int hit(paddle_position_t paddle, ball_position_t ball)
+{
+    int next_y = ball.y + ball.up_hor_down;
+    if(paddle.y != next_y)
+        return 0;
+
+    int next_x = ball.x + ball.left_ver_right;
+
+    int start_x = paddle.x - paddle.length;
+    int end_x = paddle.x + paddle.length;
+    if(next_x == start_x || next_x == end_x)
+        return 1;
+
+    for (int x = start_x+1; x < end_x; x++)
+    {
+        if(x == next_x)
+            return 2;
+    }
+    return 0;
+}
+
 /* sets a new position to the inputed ball, according to the left_ver_rigth and up_hor_down, prevventing it from going out of bounds */
-void moove_ball(ball_position_t * ball){
+void moove_ball(ball_position_t * ball, int hit){
     
     int next_x = ball->x + ball->left_ver_right;
-    if( next_x == 0 || next_x == WINDOW_SIZE-1){
+    if( next_x == 0 || next_x == WINDOW_SIZE-1 || hit == 1){
         ball->up_hor_down = rand() % 3 -1 ;
         ball->left_ver_right *= -1;
         mvwprintw(message_win, 2,1,"left right win");
@@ -87,7 +110,7 @@ void moove_ball(ball_position_t * ball){
 
     
     int next_y = ball->y + ball->up_hor_down;
-    if( next_y == 0 || next_y == WINDOW_SIZE-1){
+    if( next_y == 0 || next_y == WINDOW_SIZE-1 || hit == 2){
         ball->up_hor_down *= -1;
         ball->left_ver_right = rand() % 3 -1;
         mvwprintw(message_win, 2,1,"bottom top win");
@@ -145,6 +168,7 @@ int main(){
     message m;
     message fromServer;
     char ch;
+    int h; //debug
     while(1)
     {
         ch = ' ';
@@ -205,7 +229,8 @@ int main(){
                         draw_paddle(my_win, &paddle, true);
 
                         draw_ball(my_win, &ball, false);
-                        moove_ball(&ball);
+                        h = hit(paddle, ball);
+                        moove_ball(&ball, h);
                         draw_ball(my_win, &ball, true);
                     }
                     m.type = MOVE;
@@ -214,7 +239,8 @@ int main(){
                     sendto(sock_fd, &m, sizeof(message), 0, 
                 (const struct sockaddr *)&server_addr, sizeof(server_addr));
                     mvwprintw(message_win, 1,1,"%c key pressed\n", key);
-                    mvwprintw(message_win, 3,1,"attempt %d", i);
+                    mvwprintw(message_win, 3,1,"hit %d", h);
+                    //mvwprintw(message_win, 3,1,"attempt %d", i);
                     wrefresh(message_win);	
                 }
                 i++;
