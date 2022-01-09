@@ -153,28 +153,28 @@ int main(){
         while(ch != 'c'){scanf("%c", &ch);}
         sendto(sock_fd, &m, sizeof(message), 0, 
         (const struct sockaddr *)&server_addr, sizeof(server_addr));
-        // while(1){
-            initscr();		    	/* Start curses mode 		*/
-            cbreak();				/* Line buffering disabled	*/
-            keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
-            noecho();			    /* Don't echo() while we do getch */
+        
+        initscr();		    	/* Start curses mode 		*/
+        cbreak();				/* Line buffering disabled	*/
+        keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
+        noecho();			    /* Don't echo() while we do getch */
 
-            /* creates a window and draws a border */
-            WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
-            box(my_win, 0 , 0);	
-            wrefresh(my_win);
-            keypad(my_win, true);
-            /* creates a window and draws a border */
-            message_win = newwin(5, WINDOW_SIZE+10, WINDOW_SIZE, 0);
-            box(message_win, 0 , 0);	
-            wrefresh(message_win);
+        /* creates a window and draws a border */
+        WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
+        box(my_win, 0 , 0);	
+        wrefresh(my_win);
+        keypad(my_win, true);
+        /* creates a window and draws a border */
+        message_win = newwin(5, WINDOW_SIZE+10, WINDOW_SIZE, 0);
+        box(message_win, 0 , 0);	
+        wrefresh(message_win);
 
 
-            new_paddle(&paddle, PADDLE_SIZE);
-            draw_paddle(my_win, &paddle, true);
+        new_paddle(&paddle, PADDLE_SIZE);
+        draw_paddle(my_win, &paddle, true);
 
-            place_ball_random(&ball);
-            draw_ball(my_win, &ball, true);
+        place_ball_random(&ball);
+        draw_ball(my_win, &ball, true);
 
         while(1)
         {
@@ -182,15 +182,9 @@ int main(){
         
             if(fromServer.type == MOVE)
             {
-                paddle = fromServer.paddle;
-                ball = fromServer.ball;
-
-                draw_paddle(my_win, &paddle, false);
-                //moove_paddle (&paddle, key);
-                draw_paddle(my_win, &paddle, true);
-
                 draw_ball(my_win, &ball, false);
-                //moove_ball(&ball);
+                ball.x = fromServer.x;
+                ball.y = fromServer.y;
                 draw_ball(my_win, &ball, true);
 
                 recv(sock_fd, &fromServer, sizeof(message), 0);
@@ -215,8 +209,8 @@ int main(){
                         draw_ball(my_win, &ball, true);
                     }
                     m.type = MOVE;
-                    m.paddle = paddle;
-                    m.ball = ball;
+                    m.x = ball.x;
+                    m.y = ball.y;
                     sendto(sock_fd, &m, sizeof(message), 0, 
                 (const struct sockaddr *)&server_addr, sizeof(server_addr));
                     mvwprintw(message_win, 1,1,"%c key pressed\n", key);
