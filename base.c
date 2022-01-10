@@ -74,7 +74,7 @@ void place_ball_random(ball_position_t * ball){
 
 
 // my func
-int hit(paddle_position_t paddle, ball_position_t ball)
+int hit1(paddle_position_t paddle, ball_position_t ball)
 {
     int next_y = ball.y + ball.up_hor_down;
     if(paddle.y != next_y)
@@ -87,9 +87,53 @@ int hit(paddle_position_t paddle, ball_position_t ball)
     if(next_x == start_x || next_x == end_x)
         return 1;
 
-    for (int x = start_x+1; x < end_x; x++)
+    for (int x = start_x; x <= end_x; x++)
     {
         if(x == next_x)
+            return 2;
+    }
+    return 0;
+}
+
+int hit2(paddle_position_t paddle, ball_position_t ball)
+{
+    
+    if(paddle.y != ball.y)
+        return 0;
+
+    int start_x = paddle.x - paddle.length;
+    int end_x = paddle.x + paddle.length;
+    if(ball.x == start_x || ball.x == end_x)
+        return 1;
+
+    for (int x = start_x; x <= end_x; x++)
+    {
+        if(x == ball.x)
+            return 2;
+    }
+    return 0;
+}
+
+int hit3(paddle_position_t paddle, ball_position_t ball)
+{
+    int next_y = ball.y + ball.up_hor_down;
+    int next_x = ball.x + ball.left_ver_right;
+
+    if(paddle.y != next_y && paddle.y != ball.y)
+        return 0;
+
+    int start_x = paddle.x - paddle.length;
+    int end_x = paddle.x + paddle.length;
+
+    if(next_x == start_x && ball.left_ver_right == 1)
+        return 1;
+
+    if(next_x == end_x && ball.left_ver_right == -1)
+        return 1;
+
+    for (int x = start_x; x <= end_x; x++)
+    {
+        if(x == next_x || x == ball.x)
             return 2;
     }
     return 0;
@@ -164,7 +208,7 @@ int main(){
 	}
 
     time_t start, current;
-    int i = 0;
+    //int i = 0;
     message m;
     message fromServer;
     char ch;
@@ -207,8 +251,10 @@ int main(){
             if(fromServer.type == MOVE)
             {
                 draw_ball(my_win, &ball, false);
-                ball.x = fromServer.x;
-                ball.y = fromServer.y;
+                ball.x = fromServer.pos_x;
+                ball.y = fromServer.pos_y;
+                ball.left_ver_right = fromServer.move_x;
+                ball.up_hor_down = fromServer.move_y;
                 draw_ball(my_win, &ball, true);
 
                 recv(sock_fd, &fromServer, sizeof(message), 0);
@@ -218,24 +264,35 @@ int main(){
             {
                 start = time(NULL);
                 int key = -1;
-                while(key != 'q' && key != 'r' && difftime(current, start) < 10)
+                while(key != 'q')
                 {
                     current = time(NULL);
-                    key = wgetch(my_win);		
+                    key = wgetch(my_win);	
+                    if(difftime(current, start) >= 10 && key == 'r')
+                    {
+                        m.type = RELEASE;
+                        break;
+                    }
+
                     if (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN)
                     {
                         draw_paddle(my_win, &paddle, false);
                         moove_paddle (&paddle, key);
                         draw_paddle(my_win, &paddle, true);
 
+                        h = hit3(paddle, ball);
+                        if(h > 0)
+                            flash();
+                        
                         draw_ball(my_win, &ball, false);
-                        h = hit(paddle, ball);
                         moove_ball(&ball, h);
                         draw_ball(my_win, &ball, true);
                     }
                     m.type = MOVE;
-                    m.x = ball.x;
-                    m.y = ball.y;
+                    m.pos_x = ball.x;
+                    m.pos_y = ball.y;
+                    m.move_x = ball.left_ver_right;
+                    m.move_y = ball.up_hor_down;
                     sendto(sock_fd, &m, sizeof(message), 0, 
                 (const struct sockaddr *)&server_addr, sizeof(server_addr));
                     mvwprintw(message_win, 1,1,"%c key pressed\n", key);
@@ -243,9 +300,7 @@ int main(){
                     //mvwprintw(message_win, 3,1,"attempt %d", i);
                     wrefresh(message_win);	
                 }
-                i++;
-                if(key == 'r' || difftime(current, start) >= 10)
-                    m.type = RELEASE;
+                //i++;
                 if(key == 'q')
                     m.type = DISCONNECT;
                 sendto(sock_fd, &m, sizeof(message), 0, 

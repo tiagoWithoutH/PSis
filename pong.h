@@ -22,6 +22,10 @@ typedef struct paddle_position_t{
 typedef struct message
 {   
     msg_type type; 
-    ball_position_t ball;
-    paddle_position_t paddle;
+    //ball_position_t ball;
+    //paddle_position_t paddle;
+    int pos_x;
+    int pos_y;
+    int move_x;
+    int move_y;
 }message;
